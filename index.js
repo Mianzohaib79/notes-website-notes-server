@@ -16,7 +16,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: process.env.FRONTEND_URL, // Adjust in production
+        origin: ["https://notes-website-jjak.vercel.app"], // Adjust in production
         methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
     }
 });
@@ -53,7 +53,7 @@ app.use((err, req, res, next) => {
     res.status(500).send({ message: "Something broke!", error: err.message });
 });
 
-const PORT = process.env.PORT || 8000;
-server.listen(PORT, () => {
-    console.log(`Server is running on PORT ${PORT}`);
-});
+// const PORT = process.env.PORT || 8000;
+// server.listen(PORT, () => {
+//     console.log(`Server is running on PORT ${PORT}`);
+// });
