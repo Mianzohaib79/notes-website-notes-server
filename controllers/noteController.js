@@ -2,14 +2,16 @@ const Note = require("../models/Note");
 const Activity = require("../models/Activity");
 const User = require("../models/User");
 const mongoose = require("mongoose");
+const pusher = require("../config/pusher");
+
 
 const createNote = async (req, res) => {
     try {
         const { title, content } = req.body;
         const { uid } = req; // From auth middleware
-        
+
         const user = await User.findOne({ uid });
-        
+
         const newNote = new Note({
             title,
             content,
@@ -24,6 +26,11 @@ const createNote = async (req, res) => {
             userId: user._id,
             noteId: newNote._id
         }).save();
+
+        await pusher.trigger("notes-channel", "note-created", {
+            message: "New note created",
+            note: newNote,
+        });
 
         res.status(201).json({ message: "Note created successfully", note: newNote });
     } catch (error) {
@@ -86,6 +93,12 @@ const updateNote = async (req, res) => {
 
         await note.save();
 
+        await pusher.trigger("notes-channel", "note-updated", {
+            message: "Note updated",
+            note,
+        });
+
+
         // Track activity
         await new Activity({
             actionType: "note_edited",
@@ -117,6 +130,11 @@ const deleteNote = async (req, res) => {
         }
 
         await Note.findByIdAndDelete(id);
+
+        await pusher.trigger("notes-channel", "note-deleted", {
+            message: "Note deleted",
+            note,
+        });
         res.status(200).json({ message: "Note deleted successfully" });
     } catch (error) {
         console.error(error);
@@ -157,17 +175,17 @@ const toggleFavorite = async (req, res) => {
         if (!user) return res.status(404).json({ message: "User not found" });
 
         const isFavorite = user.favorites.some(f => f.toString() === id);
-        
-        const update = isFavorite 
-            ? { $pull: { favorites: id } } 
+
+        const update = isFavorite
+            ? { $pull: { favorites: id } }
             : { $addToSet: { favorites: id } };
 
         const updatedUser = await User.findOneAndUpdate({ uid }, update, { new: true }).select("-password");
 
-        res.status(200).json({ 
-            message: isFavorite ? "Removed from favorites" : "Added to favorites", 
+        res.status(200).json({
+            message: isFavorite ? "Removed from favorites" : "Added to favorites",
             isFavorite: !isFavorite,
-            user: updatedUser 
+            user: updatedUser
         });
     } catch (error) {
         console.error(error);
