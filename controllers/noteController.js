@@ -8,34 +8,42 @@ const pusher = require("../config/pusher");
 const createNote = async (req, res) => {
     try {
         const { title, content } = req.body;
-        const { uid } = req; // From auth middleware
+        const { uid } = req;
 
         const user = await User.findOne({ uid });
 
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
         const newNote = new Note({
-            title,
-            content,
+            title: title || "Untitled Note",
+            content: content || "",
             createdBy: user._id,
         });
 
         await newNote.save();
 
-        // Track activity
         await new Activity({
             actionType: "note_created",
             userId: user._id,
             noteId: newNote._id
         }).save();
 
-        await pusher.trigger("notes-channel", "note-created", {
-            message: "New note created",
-            note: newNote,
+        res.status(201).json({
+            message: "Note created successfully",
+            note: newNote
         });
 
-        res.status(201).json({ message: "Note created successfully", note: newNote });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Internal server error", isError: true });
+        console.log("CREATE NOTE FULL ERROR =>", error);
+
+        res.status(500).json({
+            message: error.message,
+            stack: error.stack
+        });
     }
 };
 
