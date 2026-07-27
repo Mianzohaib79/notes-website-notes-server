@@ -70,6 +70,11 @@ const getNotes = async (req, res) => {
 const getNoteById = async (req, res) => {
     try {
         const { id } = req.params;
+
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Invalid note ID", isError: true });
+        }
+
         const note = await Note.findById(id).populate("createdBy", "name email");
         if (!note) {
             return res.status(404).json({ message: "Note not found", isError: true });
@@ -87,25 +92,32 @@ const updateNote = async (req, res) => {
         const { title, content, isLocked } = req.body;
         const { uid } = req;
 
-        const user = await User.findOne({ uid });
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Invalid note ID", isError: true });
+        }
 
+        const user = await User.findOne({ uid });
+        if (!user) return res.status(404).json({ message: "User not found" });
 
         const note = await Note.findById(id);
         if (!note) return res.status(404).json({ message: "Note not found" });
 
         // Update note
-        note.title = title || note.title;
-        note.content = content || note.content;
+        note.title = title !== undefined ? title : note.title;
+        note.content = content !== undefined ? content : note.content;
         note.isLocked = isLocked !== undefined ? isLocked : note.isLocked;
         note.lastEditedBy = user._id;
 
         await note.save();
 
-        await pusher.trigger("notes-channel", "note-updated", {
-            message: "Note updated",
-            note,
-        });
-
+        try {
+            await pusher.trigger("notes-channel", "note-updated", {
+                message: "Note updated",
+                note,
+            });
+        } catch (pusherErr) {
+            console.error("Pusher note-updated error (non-fatal):", pusherErr.message);
+        }
 
         // Track activity
         await new Activity({
@@ -126,8 +138,12 @@ const deleteNote = async (req, res) => {
         const { id } = req.params;
         const { uid } = req;
 
-        const user = await User.findOne({ uid });
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Invalid note ID", isError: true });
+        }
 
+        const user = await User.findOne({ uid });
+        if (!user) return res.status(404).json({ message: "User not found" });
 
         const note = await Note.findById(id);
         if (!note) return res.status(404).json({ message: "Note not found" });
@@ -139,13 +155,18 @@ const deleteNote = async (req, res) => {
 
         await Note.findByIdAndDelete(id);
 
-        await pusher.trigger("notes-channel", "note-deleted", {
-            message: "Note deleted",
-            note,
-        });
+        try {
+            await pusher.trigger("notes-channel", "note-deleted", {
+                message: "Note deleted",
+                noteId: id,
+            });
+        } catch (pusherErr) {
+            console.error("Pusher note-deleted error (non-fatal):", pusherErr.message);
+        }
+
         res.status(200).json({ message: "Note deleted successfully" });
     } catch (error) {
-        console.error(error);
+        console.error("deleteNote error:", error);
         res.status(500).json({ message: "Internal server error", isError: true });
     }
 };

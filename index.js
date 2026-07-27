@@ -28,8 +28,16 @@ app.set("io", io);
 app.use(cors());
 app.use(express.json());
 
-// DB Connection
-connectDB();
+// DB Connection Middleware for Serverless / Express
+app.use(async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (err) {
+        console.error("Database connection error:", err);
+        res.status(500).json({ message: "Database connection failed", error: err.message });
+    }
+});
 
 // API Routes
 app.use("/auth", auth);
