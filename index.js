@@ -5,45 +5,25 @@ const http = require("http");
 const { Server } = require("socket.io");
 const { connectDB } = require("./config/db");
 
-// Routes
 const auth = require("./routes/auth");
 const notes = require("./routes/notes");
-
-// Sockets
 const socketHandler = require("./sockets/socketHandler");
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
     cors: {
-        origin: ["https://notes-website-jjak.vercel.app"], // Adjust in production
+        origin: ["https://notes-website-jjak.vercel.app"],
         methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
     }
 });
-
-// Attach io to app to access in controllers
 app.set("io", io);
-
-// Middlewares
 app.use(cors());
 app.use(express.json());
-
-// DB Connection Middleware for Serverless / Express
-app.use(async (req, res, next) => {
-    try {
-        await connectDB();
-        next();
-    } catch (err) {
-        console.error("Database connection error:", err);
-        res.status(500).json({ message: "Database connection failed", error: err.message });
-    }
-});
-
-// API Routes
 app.use("/auth", auth);
 app.use("/notes", notes);
 
-// Basic Endpoints
 app.get("/", (req, res) => {
     res.send({ status: "Server is running", time: new Date().toLocaleString() });
 });
@@ -52,25 +32,19 @@ app.get("/health-check", (req, res) => {
     res.send({ status: "ok", features: ["auth", "notes", "sockets"] });
 });
 
-// Socket.io initialization
 socketHandler(io);
 
-// Error Handling Middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).send({ message: "Something broke!", error: err.message });
 });
 
-// const PORT = process.env.PORT || 8000;
-// server.listen(PORT, () => {
-//     console.log(`Server is running on PORT ${PORT}`);
-// });
-// const PORT = process.env.PORT;
-// server.listen(PORT, () => {
-//     console.log(`Server is running on PORT ${PORT}`);
-// });
 const PORT = parseInt(process.env.PORT, 10) || 8000;
 
-server.listen(PORT, () => {
-    console.log(`Server is running on PORT ${PORT}`);
+connectDB().then(() => {
+    server.listen(PORT, () => {
+        console.log(`🚀 Server is running on PORT ${PORT}`);
+    });
+}).catch((err) => {
+    console.error("Failed to connect DB, server not started:", err.message);
 });

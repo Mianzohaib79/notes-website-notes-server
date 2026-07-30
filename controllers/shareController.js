@@ -32,7 +32,18 @@ const shareNote = async (req, res) => {
 
         await note.save();
 
-        // Emit real-time notification
+        const pusher = require("../config/pusher");
+        try {
+            await pusher.trigger("notes-channel", "note-shared", {
+                message: `${owner.name} shared a note with you: ${note.title}`,
+                note,
+                sharedWithUserId: userToShareWith._id
+            });
+        } catch (pusherErr) {
+            console.error("Pusher note-shared error (non-fatal):", pusherErr.message);
+        }
+
+        // Emit real-time notification via socket.io if available
         const io = req.app.get("io");
         if (io) {
             // We use the shared user's uid as the room name for personal notifications
