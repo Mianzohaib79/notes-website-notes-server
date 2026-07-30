@@ -9,10 +9,15 @@ const register = async (req, res) => {
             return res.status(400).json({ message: "Email and password are required.", isError: true });
         }
 
-        const cleanEmail = email.trim().toLowerCase();
-        const userExists = await User.findOne({ email: cleanEmail });
+        const cleanEmail = email.trim();
+        const userExists = await User.findOne({
+            $or: [
+                { email: cleanEmail.toLowerCase() },
+                { email: { $regex: new RegExp(`^${cleanEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") } }
+            ]
+        });
         if (userExists) {
-            return res.status(400).json({ message: "Email is already in use.", isError: true });
+            return res.status(400).json({ message: "Email is already in use. Please login instead.", isError: true });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -21,14 +26,14 @@ const register = async (req, res) => {
         const newUser = new User({
             uid,
             name: name ? name.trim() : "User",
-            email: cleanEmail,
+            email: cleanEmail.toLowerCase(),
             password: hashedPassword,
             profileImage: req.body.profileImage || "" // Cloudinary URL if provided
         });
 
         await newUser.save();
         const userResponse = await User.findOne({ uid: newUser.uid }).select("-password");
-        res.status(201).json({ message: "A new user has been successfully created", user: userResponse });
+        res.status(201).json({ message: "Account created successfully", user: userResponse });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Internal server error", isError: true });
@@ -42,10 +47,16 @@ const login = async (req, res) => {
             return res.status(400).json({ message: "Please enter both email and password.", isError: true });
         }
 
-        const cleanEmail = email.trim().toLowerCase();
-        const user = await User.findOne({ email: cleanEmail });
+        const cleanEmail = email.trim();
+        const user = await User.findOne({
+            $or: [
+                { email: cleanEmail.toLowerCase() },
+                { email: { $regex: new RegExp(`^${cleanEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") } }
+            ]
+        });
+
         if (!user) {
-            return res.status(401).json({ message: "Invalid email or password", isError: true });
+            return res.status(401).json({ message: "No account found with this email. Please check your email or register.", isError: true });
         }
 
         const match = await bcrypt.compare(password, user.password);
@@ -58,7 +69,7 @@ const login = async (req, res) => {
 
             res.status(200).json({ message: "Login successful", token, user: userResponse });
         } else {
-            res.status(401).json({ message: "Invalid email or password", isError: true });
+            res.status(401).json({ message: "Incorrect password. Please check your password and try again.", isError: true });
         }
     } catch (error) {
         console.error(error);
