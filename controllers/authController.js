@@ -5,10 +5,14 @@ const jwt = require("jsonwebtoken");
 const register = async (req, res) => {
     try {
         const { name, email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ message: "Email and password are required.", isError: true });
+        }
 
-        const userExists = await User.findOne({ email });
+        const cleanEmail = email.trim().toLowerCase();
+        const userExists = await User.findOne({ email: cleanEmail });
         if (userExists) {
-            return res.status(401).json({ message: "Email is already in use.", isError: true });
+            return res.status(400).json({ message: "Email is already in use.", isError: true });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -16,8 +20,8 @@ const register = async (req, res) => {
 
         const newUser = new User({
             uid,
-            name,
-            email,
+            name: name ? name.trim() : "User",
+            email: cleanEmail,
             password: hashedPassword,
             profileImage: req.body.profileImage || "" // Cloudinary URL if provided
         });
@@ -34,8 +38,12 @@ const register = async (req, res) => {
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ message: "Please enter both email and password.", isError: true });
+        }
 
-        const user = await User.findOne({ email });
+        const cleanEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ email: cleanEmail });
         if (!user) {
             return res.status(401).json({ message: "Invalid email or password", isError: true });
         }
@@ -43,7 +51,7 @@ const login = async (req, res) => {
         const match = await bcrypt.compare(password, user.password);
         if (match) {
             const { uid, email: userEmail, name } = user;
-            const token = jwt.sign({ uid, email: userEmail }, process.env.JWT_SECRET || "codevpk", { expiresIn: "1d" });
+            const token = jwt.sign({ uid, email: userEmail }, process.env.JWT_SECRET || "codevpk", { expiresIn: "30d" });
 
             // Return full user object (excluding password)
             const userResponse = await User.findOne({ uid }).select("-password");
